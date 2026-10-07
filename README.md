@@ -2,6 +2,8 @@
 
 **팀 오르락** · AI와 함께하는 교통문제 해결을 위한 데이터 분석 공모전 (한겨레 × 재단법인 숲과나눔, 2026)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pros1127-glitch/ororak-ddareungi/blob/main/run_colab.ipynb)  ← 설치 없이 브라우저에서 바로 실행 (`run_colab.ipynb`)
+
 경사 보정 자전거 필요동력 지수(HPI)로 서울 따릉이 대여소의 '도착 난이도'를 계산하고,
 대여·반납 불균형과 오르막/내리막 방향 비대칭을 분석한 뒤 전기자전거 우선배치 대여소를 도출하는 코드입니다.
 
@@ -18,12 +20,12 @@
 
 `results/` 폴더에 보고서에 쓴 그림 5개와 결과 요약(`results_summary.txt`), 우선배치 30곳 목록이 들어 있습니다.
 
-## 1. 설치
+## 1. 설치 (내 PC에서 실행할 때 — Colab은 설치 불필요)
 ```bash
 pip install -r requirements.txt
 ```
 
-## 2. 데이터 준비 (서울 열린데이터광장, 무료·로그인 없이 다운로드)
+## 2. 원본 데이터 (아래 3-(B) 방식으로 직접 집계할 때만 필요 · 서울 열린데이터광장, 무료)
 | 파일 | 데이터셋 | 저장 위치 |
 |---|---|---|
 | 대여소 정보 (.xlsx) | 서울시 공공자전거 따릉이 대여소 정보 (OA-13252) https://data.seoul.go.kr/dataList/OA-13252/F/1/datasetView.do | `data/` |
@@ -35,12 +37,27 @@ pip install -r requirements.txt
   국토지리정보원 DEM 등 더 정밀한 고도를 쓰려면 `station_id,elev` 형식 CSV를 만들어 `--elev-csv`로 넣으세요.
 
 ## 3. 실행
-보고서와 같은 결과를 재현하려면 저장소에 포함된 고도 파일(`data/elevation_srtm30m.csv`)을 함께 지정합니다(인터넷 고도 조회 불필요).
+
+### (A) 저장소 파일만으로 바로 재현 — 권장
+원본 대여이력(733MB)은 GitHub에 올릴 수 없어서, 이를 출발–도착 대여소별 통행 수로 집계한 파일(`data/od_2606.csv.gz`, 1.3MB)을 함께 올려 두었습니다.
+이 파일로 실행해도 원본으로 실행한 것과 **결과가 완전히 같습니다**(약 2~5분).
 ```bash
-python analysis.py --stations "data/공공자전거 대여소 정보(26.6월 기준).xlsx" --trips "data/trips/*.csv" --elev-csv data/elevation_srtm30m.csv
+python analysis.py --stations data/stations_2606.xlsx --od data/od_2606.csv.gz --elev-csv data/elevation_srtm30m.csv
+```
+
+### (B) 원본 대여이력부터 직접 집계
+위 2번의 데이터를 내려받아 넣은 뒤 실행합니다(약 5~10분). `--save-od`를 붙이면 집계 파일을 새로 만듭니다.
+```bash
+python analysis.py --stations data/stations_2606.xlsx --trips "data/trips/*.csv" --elev-csv data/elevation_srtm30m.csv --save-od data/od_2606.csv.gz
 ```
 `--elev-csv`를 빼면 고도를 Open Topo Data API에서 새로 조회합니다.
-코드 작동만 확인하려면 `python analysis.py --demo` (가짜 데이터 — 결과를 보고서에 쓰면 안 됩니다. 그림에 DEMO 표시가 찍힙니다).
+
+### 저장소에 포함된 데이터
+| 파일 | 내용 | 출처 |
+|---|---|---|
+| `data/stations_2606.xlsx` | 따릉이 대여소 정보(2026.6 기준, 2,789개) | 서울 열린데이터광장 OA-13252 (공공누리 제1유형) |
+| `data/od_2606.csv.gz` (+ `.meta.json`) | 2026년 6월 대여이력 4,161,207건의 출발–도착 대여소별 통행 수 | 서울 열린데이터광장 OA-15182를 집계 |
+| `data/elevation_srtm30m.csv` | 대여소별 고도(SRTM 30m) | Open Topo Data |
 
 ## 4. 결과 (`outputs/`)
 | 파일 | 내용 | 보고서 위치 |

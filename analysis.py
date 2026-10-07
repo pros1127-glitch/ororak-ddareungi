@@ -198,6 +198,22 @@ def load_trips(pattern, chunksize=500_000):
     return od, n_days, n_total, avg_trip_m
 
 
+def save_od(od, n_days, n_total, avg_trip_m, path):
+    """대여이력 원본(수백 MB)을 출발–도착 대여소별 통행 수(수 MB)로 줄여 저장 → GitHub에 함께 올려 재현 가능"""
+    od.to_csv(path, index=False, compression="gzip" if str(path).endswith(".gz") else None)
+    meta = {"n_days": int(n_days), "n_total": int(n_total), "avg_trip_m": None if np.isnan(avg_trip_m) else float(avg_trip_m)}
+    with open(str(path) + ".meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+
+def load_od(path):
+    od = pd.read_csv(path, dtype={"o": str, "d": str})
+    with open(str(path) + ".meta.json", encoding="utf-8") as f:
+        meta = json.load(f)
+    avg = meta["avg_trip_m"] if meta["avg_trip_m"] is not None else np.nan
+    return od, meta["n_days"], meta["n_total"], avg
+
+
 def get_elevations(st, cache_path, dataset="srtm30m", elev_csv=None):
     """대여소 고도: (1) 사용자가 준 CSV(station_id, elev) → (2) 캐시 → (3) Open Topo Data API"""
     if elev_csv:
@@ -622,6 +638,8 @@ def main():
     ap.add_argument("--trips", help='공공자전거 대여이력 CSV 경로 패턴, 예: "data/trips/*.csv"')
     ap.add_argument("--elev-csv", help="(선택) 대여소 고도 CSV: station_id, elev")
     ap.add_argument("--dataset", default="srtm30m", help="Open Topo Data 데이터셋 (srtm30m / aster30m)")
+    ap.add_argument("--od", help="(선택) 대여이력 대신 쓸 O-D 집계 파일 (저장소의 data/od_2606.csv.gz)")
+    ap.add_argument("--save-od", help="(선택) 대여이력을 집계한 O-D 파일을 이 경로에 저장")
     ap.add_argument("--demo", action="store_true", help="가짜 데이터로 작동 테스트")
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
@@ -634,7 +652,12 @@ def main():
         print(f"  - 대여소 {len(st):,}개")
         print("[2/4] 고도 붙이기"); st = get_elevations(st, f"{OUT}/elevation_cache.csv", a.dataset, a.elev_csv)
         st = st.dropna(subset=["elev"])
-        print("[3/4] 대여이력 집계"); od, n_days, n_total, avg_m = load_trips(a.trips)
+        if a.od:
+            print("[3/4] O-D 집계 파일 불러오기"); od, n_days, n_total, avg_m = load_od(a.od)
+        else:
+            print("[3/4] 대여이력 집계"); od, n_days, n_total, avg_m = load_trips(a.trips)
+            if a.save_od:
+                save_od(od, n_days, n_total, avg_m, a.save_od); print(f"  - O-D 집계 저장: {a.save_od}")
     print("[4/4] 지형 특성·분석·시각화")
     st = station_terrain_features(st)
     st, sa, ml, pair, tab, imp, top, gu, res = analyze(st, od, n_days, n_total, avg_m)
